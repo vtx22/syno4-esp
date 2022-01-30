@@ -3,12 +3,21 @@
 // 02/2022
 
 #include <Arduino.h>
+#include <Wire.h>
 
-bool scanData[360]; //Stores a full LIDAR scan, distance for every angle from 0 - 360°
+#include "oled.hpp"
+
+OLED *display;
+Messenger *msg;
+
+float scanData[360]; //Stores a full LIDAR scan, distance in m for every angle from 0 - 360°
 
 void setup()
 {
-   // put your setup code here, to run once:
+   Wire.setClock(400000);
+   Wire.begin();
+   msg = new Messenger(ALL);
+   display = new OLED(&Wire, msg);
 }
 
 void loop()
