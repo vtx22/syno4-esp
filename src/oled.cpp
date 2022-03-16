@@ -1,4 +1,8 @@
+//https://wokwi.com/arduino/projects/322861520670163540
+
 #include "oled.hpp"
+
+#define DEG2RAD (PI / 180.f)
 
 OLED::OLED(TwoWire *wire, Messenger *msg) : _msg(msg)
 {
@@ -29,78 +33,85 @@ void OLED::startupAnimation()
    delay(500);
 }
 
-//Shows a LIDAR scan on the OLED
-//scan: data array of distances to every angle = 360° / points, first element is drive direction, then CCW
-//points: number of points in scan (points have to be equally spaced)
-void OLED::showLIDARScan(float *scan, int points)
+float OLED::calculateScaling(float *scan, DRAW_TYPE drawType)
 {
    float maxDistance = 0;
-   int maxDistanceIndex;
-
-   //Find maximum distance for map scaling
-   for (int i = 0; i < points; i++)
+   for (int i = 0; i < 360; i++)
    {
       if (scan[i] > maxDistance)
       {
          maxDistance = scan[i];
-         maxDistanceIndex = i;
       }
    }
 
-   _display->clearDisplay();
-   //Draw Center Point
-   uint16_t cW = _WIDTH / 2;
-   uint16_t cH = _HEIGHT / 2;
-
-   _display->drawPixel(cW, cH, WHITE);
-   _display->drawPixel(cW - 1, cH, WHITE);
-   _display->drawPixel(cW - 1, cH - 1, WHITE);
-   _display->drawPixel(cW, cH - 1, WHITE);
-
-   //        a
-   //   |========|
-   // b |        | d
-   //   |========|
-   //       c
-
-   //Find longest distance for every side of the rectangle around the scan-shape
-
-   //Calculate angles for assigned side - TODO
-   int angleLongSide = 120;
-   int angleShortSide = 180 - angleLongSide;
-
-   //Working for a
-   float maxDisA = 0;
-   float maxDisC = 0;
-
-   //Find max distance from center axis for angles 0 - 60
-   for (int i = 0; i <= angleLongSide / 2; i++) // 0 - 60
+   if (drawType == RAW_SCAN)
    {
-      float distance = sin((90 - i) * PI / 180.f) * scan[i];
-      if (maxDisA < distance)
-      {
-         maxDisA = distance;
-      }
+      return _HEIGHT / (2.f * maxDistance);
    }
-   //Find max distance from center axis for angles 359 - 300
-   for (int i = 0; i < angleLongSide / 2; i++) // 0 - 59
-   {
-      float distance = sin((90 - i - 1) * PI / 180.f) * scan[359 - i];
-      if (maxDisA < distance)
-      {
-         maxDisA = distance;
-      }
-   }
+}
 
+void OLED::pixelToXY(float distance, float angle, float scaling, uint16_t *x, uint16_t *y)
+{
+   *x = 0;
+   *y = 0;
+
+   const uint16_t cW = _WIDTH / 2;
+   const uint16_t cH = _HEIGHT / 2;
+
+   if (angle >= 0 && angle <= 90)
+   {
+      float xLength = sin(angle * DEG2RAD) * distance;
+      float yLength = cos(angle * DEG2RAD) * distance;
+
+      *x = cW - xLength * scaling;
+      *y = cH - yLength * scaling;
+      return;
+   }
+   if (angle > 90 && angle <= 180)
+   {
+      angle -= 90;
+      float xLength = cos(angle * DEG2RAD) * distance;
+      float yLength = sin(angle * DEG2RAD) * distance;
+
+      *x = cW - xLength * scaling;
+      *y = cH + yLength * scaling;
+      return;
+   }
+   if (angle > 180 && angle <= 270)
+   {
+      angle -= 180;
+      float xLength = sin(angle * DEG2RAD) * distance;
+      float yLength = cos(angle * DEG2RAD) * distance;
+
+      *x = cW + xLength * scaling;
+      *y = cH + yLength * scaling;
+      return;
+   }
+   if (angle > 270 && angle <= 359)
+   {
+      angle -= 270;
+      float xLength = cos(angle * DEG2RAD) * distance;
+      float yLength = sin(angle * DEG2RAD) * distance;
+
+      *x = cW + xLength * scaling;
+      *y = cH - yLength * scaling;
+      return;
+   }
+}
+
+//Shows a LIDAR scan on the OLED
+//scan: data array of distances to every angle = 360° / points, first element is drive direction, then CCW
+//points: number of points in scan (points have to be equally spaced)
+void OLED::showLIDARScan(float *scan)
+{
+   for (uint16_t i = 0; i < 360; i++)
+   {
+      uint16_t x, y;
+      pixelToXY(scan[i], i, calculateScaling(scan, RAW_SCAN), &x, &y);
+
+      _display->drawPixel(x, y, WHITE);
+   }
    //=============================================
-
-   float maxDisB = 0;
-   float maxDisD = 0;
-
-   for (int i = angleLongSide / 2; i < 90; i++)
-   {
-      float distance =
-   }
 
    _display->display();
 }
